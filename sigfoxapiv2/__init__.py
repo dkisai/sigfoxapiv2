@@ -1,5 +1,6 @@
 import base64
 import requests
+from requests.exceptions import Timeout
 import json
 import datetime
 from sigfoxapiv2.helper import make_sigfox_url, try_add_optional_arg
@@ -43,6 +44,22 @@ class Sigfox:
     def __init__(self, user, password):
         self.user = user
         self.passwd = password
+        self._timeout = (3.05, 27)
+
+    @property
+    def timeout(self):
+        # Gets requests.timeout tupple(connect, response)
+        return self._timeout
+
+    @timeout.setter
+    def timeout(self, value):
+        # Sets requests.timeout tupple(connect, response)
+        s = "expected a tuple(connect_T, repsonse_T) of types: (float, int)"
+        assert isinstance(value, tuple), s
+        assert isinstance(value[0], float), s
+        assert isinstance(value[1], int), s
+        self._timeout = value
+
 
     # ====================================
     #
@@ -73,11 +90,14 @@ class Sigfox:
         headers["Accept"] = "application/json"
 
         # Make request
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
-        data = None
-        if response.content:
-            data = json.loads(response.content)
-        return response.status_code, data
+        try:
+            response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=self.timeout)
+            data = None
+            if response.content:
+                data = json.loads(response.content)
+            return response.status_code, data
+        except Timeout:
+            return 408, {"error": "Sigfox.server - POST request timeout"}
 
     def _make_api_put(self, url: str, payload: dict):
         """
@@ -92,11 +112,14 @@ class Sigfox:
         headers["Accept"] = "application/json"
 
         # Make request
-        response = requests.put(url, headers=headers, data=json.dumps(payload))
-        data = None
-        if response.content:
-            data = json.loads(response.content)
-        return response.status_code, data
+        try:
+            response = requests.put(url, headers=headers, data=json.dumps(payload), timeout=self.timeout)
+            data = None
+            if response.content:
+                data = json.loads(response.content)
+            return response.status_code, data
+        except Timeout:
+            return 408, {"error": "Sigfox.server - PUT request timeout"}
 
     def _make_api_get(self, url: str):
         """
@@ -104,11 +127,14 @@ class Sigfox:
         :param url:  API endpoint RESTful request URL
         :return: json response data
         """
-        response = requests.get(url, headers=self._make_auth_header())
-        data = None
-        if response.content:
-            data = json.loads(response.content)
-        return response.status_code, data
+        try:
+            response = requests.get(url, headers=self._make_auth_header(), timeout=self.timeout)
+            data = None
+            if response.content:
+                data = json.loads(response.content)
+            return response.status_code, data
+        except Timeout:
+            return 408, {"error": "Sigfox.server - GET request timeout"}
 
     # ====================================
     #
