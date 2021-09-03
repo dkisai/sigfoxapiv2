@@ -1,2 +1,11 @@
 config.py
 __pycache__
+
+.idea/
+.DS_Store
+*.egg-info
+dist/
+.pytest_cache/
+.coverage
+
+build/
