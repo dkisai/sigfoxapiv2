@@ -9,3 +9,5 @@ dist/
 .coverage
 
 build/
+
+update.sh
