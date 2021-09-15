@@ -8,16 +8,29 @@ from enum import Enum
 
 
 class CallbackChannel(str, Enum):
-    URL = ("URL",)
-    BatchURL = ("BATCH_URL",)
+    URL = "URL"
+    BatchURL = "BATCH_URL"
     Email = "EMAIL"
 
 
 class HTTPMethod(str, Enum):
-    Get = ("GET",)
-    Put = ("PUT",)
+    Get = "GET"
+    Put = "PUT"
     Post = "POST"
 
+class DownlinkMode (Enum):
+    DLDirect = 0
+    DLCallback = 1
+    DLNone = 2
+    DLManaged = 3
+
+class DeviceTypePayloadType(Enum):
+    Regular = 2
+    CustomGrammar = 3
+    Geolocation = 4
+    DisplayInASCII = 5
+    RadioPlanningFrame = 6
+    Sensitv2 = 9
 
 class CallbackType(Enum):
     Data = 0
@@ -407,16 +420,36 @@ class Sigfox:
         return self._make_api_get(make_sigfox_url("/device-types"))
 
     def create_device_type(
-        self, name: str, group_id: str, contracts: str, geoloc_payload_config_id: str, description: str = None
-    ):
+            self, 
+            name: str, 
+            group_id: str, 
+            contracts: str, 
+            geoloc_payload_config_id: str, 
+            description: str = None, 
+            downlink_mode: DownlinkMode = None,
+            downlink_data_string: str = None,
+            payload_type: DeviceTypePayloadType = None,
+            payload_config: str = None,
+            keep_alive: int = 1800,
+            alert_email: str = None,
+            automatic_renewal: bool = True,
+            contract_id: bool = True,
+        ):
         """
         Create a new device type
         https://support.sigfox.com/apidocs#operation/listDeviceTypes
         :param name The device type's name
         :param group_id The device type's group identifier
-        :param contracts The device type's contract identifiers
+        :param contracts The device type's contract identifiers, format as 
         :param geoloc_payload_config_id The geoloc payload configuration identifier. Required if the payload type is Geolocation, else ignored.
-        :param description The device type's description
+        :param downlink_mode The downlink mode to use for the devices of this device type
+        :param downlink_data_string Downlink data to be sent to the devices of this device type if the downlinkMode is equal to 0. It must be an 8 byte length message given in hexadecimal string format.
+        :param payload_type The payload type
+        :param payload_config The payload configuration. Required if the payload type is Custom, else ignored.
+        :param keep_alive Keep alive period in seconds (0 to not keep alive else 1800 second minimum)
+        :param alert_email Email address to contact in case of problems occurring while executing a callback. This field can be unset when updating.
+        :param automatic_renewal Allows the automatic renewal of devices attached to this device type
+        :param contract_id The device type's contract identifier
         :return: json response containing the newly created device type id
         """
         payload = {
@@ -427,6 +460,14 @@ class Sigfox:
             "geoloc_payload_config_id": geoloc_payload_config_id,
         }
         try_add_optional_arg(payload, "description", description)
+        try_add_optional_arg(payload, "downlinkMode", downlink_mode)
+        try_add_optional_arg(payload, "downlinkDataString", downlink_data_string)
+        try_add_optional_arg(payload, "payloadType", payload_type)
+        try_add_optional_arg(payload, "payloadConfig", payload_config)
+        try_add_optional_arg(payload, "keepAlive", keep_alive)
+        try_add_optional_arg(payload, "alertEmail", alert_email)
+        try_add_optional_arg(payload, "automaticRenewal", automatic_renewal)
+        try_add_optional_arg(payload, "contractId", contract_id)
         return self._make_api_post(make_sigfox_url("/devices"), payload)
 
     # ====================================
