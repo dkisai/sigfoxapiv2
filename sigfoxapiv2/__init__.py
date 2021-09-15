@@ -4,7 +4,9 @@ from requests.exceptions import Timeout
 import json
 import datetime
 from sigfoxapiv2.helper import make_sigfox_url, try_add_optional_arg
-from enum import Enum
+from enum import Enum, IntEnum
+from json import JSONEncoder
+from pprint import pprint
 
 
 class CallbackChannel(str, Enum):
@@ -18,13 +20,15 @@ class HTTPMethod(str, Enum):
     Put = "PUT"
     Post = "POST"
 
-class DownlinkMode (Enum):
+
+class DownlinkMode(IntEnum):
     DLDirect = 0
     DLCallback = 1
     DLNone = 2
     DLManaged = 3
 
-class DeviceTypePayloadType(Enum):
+
+class DeviceTypePayloadType(IntEnum):
     Regular = 2
     CustomGrammar = 3
     Geolocation = 4
@@ -32,13 +36,14 @@ class DeviceTypePayloadType(Enum):
     RadioPlanningFrame = 6
     Sensitv2 = 9
 
-class CallbackType(Enum):
+
+class CallbackType(IntEnum):
     Data = 0
     Service = 1
     Error = 2
 
 
-class CallbackSubtype(Enum):
+class CallbackSubtype(IntEnum):
     Status = 0
     GeoLocation = 1
     Uplink = (2,)
@@ -73,7 +78,6 @@ class Sigfox:
         assert isinstance(value[1], int), s
         self._timeout = value
 
-
     # ====================================
     #
     #   Helper functions
@@ -101,7 +105,6 @@ class Sigfox:
         headers = self._make_auth_header()
         headers["Content-type"] = "application/json"
         headers["Accept"] = "application/json"
-
         # Make request
         try:
             response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=self.timeout)
@@ -169,7 +172,7 @@ class Sigfox:
         :param device_id The ID of the Sigfox device
         :return: json response containing device data
         """
-        return self._make_api_get(make_sigfox_url("/devices/{deviceid}", fargs={"deviceid": device_id}))
+        return self._make_api_get(make_sigfox_url(f"/devices/{device_id}"))
 
     def get_devices(self, device_type_id: str):
         """
@@ -179,7 +182,7 @@ class Sigfox:
         :param device_type_id The ID of the Sigfox device type
         :return: json response containing devices of the device type
         """
-        return self._make_api_get(make_sigfox_url("/devices?deviceTypeId={sfid}", fargs={"sfid": device_type_id}))
+        return self._make_api_get(make_sigfox_url(f"/devices?deviceTypeId={device_type_id}"))
 
     def get_device_messages(self, device_id: str, since: datetime.datetime = None):
         """
@@ -191,12 +194,8 @@ class Sigfox:
         :return: json response containing device messages
         """
         if since:
-            return self._make_api_get(
-                make_sigfox_url(
-                    "/devices/{sfid}/messages?since={timestamp}", fargs={"sfid": device_id, "timestamp": since}
-                )
-            )
-        return self._make_api_get(make_sigfox_url("/devices/{sfid}/messages", fargs={"sfid": device_id}))
+            return self._make_api_get(make_sigfox_url(f"/devices/{device_id}/messages?since={since}"))
+        return self._make_api_get(make_sigfox_url(f"/devices/{device_id}/messages"))
 
     def create_device(self, id: str, name: str, device_type_id: str, pac_code: str):
         """
@@ -208,7 +207,12 @@ class Sigfox:
         :param pac_code The device's PAC (Porting Access Code)
         :return: json response containing new id
         """
-        payload = {"id": id, "name": name, "deviceTypeId": device_type_id, "pac": pac_code}
+        payload = {
+            "id": id,
+            "name": name,
+            "deviceTypeId": device_type_id,
+            "pac": pac_code,
+        }
         return self._make_api_post(make_sigfox_url("/devices"), payload)
 
     def bulk_create_devices(self, device_type_id: str, device_list: list):
@@ -223,7 +227,12 @@ class Sigfox:
         return self._make_api_post(make_sigfox_url("/devices"), payload)
 
     def update_device(
-        self, id, name: str = None, latitude: str = None, longitude: str = None, certificate: str = None
+        self,
+        id,
+        name: str = None,
+        latitude: str = None,
+        longitude: str = None,
+        certificate: str = None,
     ):
         """
         Updates an exsisting Sigfox device.
@@ -232,7 +241,7 @@ class Sigfox:
         :param latitude The new latitude of the device
         :param longitude The new longitude of the device
         :param certificate The certificate name
-        :return: json response 
+        :return: json response
         """
         payload = {}
         payload = try_add_optional_arg(payload, "name", name)
@@ -240,7 +249,7 @@ class Sigfox:
         payload = try_add_optional_arg(payload, "lng", longitude)
         if certificate is not None:
             payload["productCertificate"] = {"key": certificate}
-        return self._make_api_put(make_sigfox_url("/devices/{}", fargs={"sfid": id}), payload)
+        return self._make_api_put(make_sigfox_url(f"/devices/{id}"), payload)
 
     def bulk_update_devices(self, device_list: list):
         """
@@ -253,7 +262,11 @@ class Sigfox:
         return self._make_api_put(make_sigfox_url("/devices/bulk"), payload)
 
     def transfer_device(
-        self, new_device_type_id: str, device_id: list, keep_history: bool = True, activable: bool = True
+        self,
+        new_device_type_id: str,
+        device_id: list,
+        keep_history: bool = True,
+        activable: bool = True,
     ):
         """
         Transfer a device to another device type
@@ -308,6 +321,8 @@ class Sigfox:
         headers: str = None,
         body_template: str = None,
         content_type: str = None,
+        payload_config: str = None,
+        send_sni: bool = None,
     ):
         """
         Creates a callback for a device type
@@ -322,28 +337,31 @@ class Sigfox:
         :param headers The headers of the http request to send, as an object with key:value.
         :param body_template The body template of the request, eg "{id: {id}}
         :param content_type The body media type of the request, eg "application/json"
+        :param payload_config The custom payload configuration. Only for DATA and DATA_ADVANCED callbacks
+        :param send_sni BATCH_URL and URL callbacks only, says whether to send SNI (Server Name Indication) for SSL/TLS connections.
         :return: json containing an "id" field of the newly created callback ID
         """
         payload = {
             "channel": callback_channel,
             "callbackType": callback_type,
             "callbackSubtype": callback_subtype,
-            "is_enabled": is_enabled,
+            "enabled": is_enabled,
             "url": url,
-            "http_method": http_method,
+            "httpMethod": http_method,
         }
         try_add_optional_arg(payload, "headers", headers)
+        try_add_optional_arg(payload, "headers", send_sni)
+        try_add_optional_arg(payload, "headers", payload_config)
 
         # HTTP POST and HTTP PUT require the callback to have a body and content type
         if http_method == "POST" or http_method == "PUT":
             if body_template is None or content_type is None:
-                # To do: Throw an error
-                pass
+                return 400, {"message": "POST and PUT requests require body template and content type parameters."}
             else:
                 try_add_optional_arg(payload, "bodyTemplate", body_template)
                 try_add_optional_arg(payload, "contentType", content_type)
 
-        return self._make_api_post(make_sigfox_url("/device_types/{}/callbacks", fargs={"id": id}), payload)
+        return self._make_api_post(make_sigfox_url(f"/device-types/{id}/callbacks"), payload)
 
     def update_device_type_callback(
         self,
@@ -366,7 +384,7 @@ class Sigfox:
         :param callback_id The callback identifier
         :param callback_channel The callback's channel, "URL", "BATCH_URL", or EMAIL"
         :param callback_type The callback's type, 0 for DATA, 1 for SERVICE, 2 for ERRROR
-        :param callback_subtype The callback's subtype, 0 for STATUS, 1 for GEOLOC, 2 for UPLINK, 3 for BIDIR (bidirectional), 4 for ACKNOWLEDGE, 5 for REPEATER, 6 for DATA_ADVANCED
+        :param callback_subtype The callback's subtype (STATUS, GEOLOC, UPLINK, BIDIR, ACKNOWLEDGE, REPEATER, or DATA_ADVANCED)
         :param is_enabled True to enable the callback, otherwise false
         :param url The callback's url
         :param http_method The http method used to send a callback, "GET", "PUT", or "POST"
@@ -375,13 +393,13 @@ class Sigfox:
         :param content_type The body media type of the request, eg "application/json"
         :return: json containing an "id" field of the newly created callback ID
         """
-        payload = {}
+        payload = {}  #
         try_add_optional_arg(payload, "channel", callback_channel)
         try_add_optional_arg(payload, "callbackType", callback_type)
-        try_add_optional_arg(payload, "callback_subtype", callback_subtype)
-        try_add_optional_arg(payload, "is_enabled", is_enabled)
+        try_add_optional_arg(payload, "callbackSubtype", callback_subtype)
+        try_add_optional_arg(payload, "enabled", is_enabled)
         try_add_optional_arg(payload, "url", url)
-        try_add_optional_arg(payload, "http_method", http_method)
+        try_add_optional_arg(payload, "httpMethod", http_method)
         try_add_optional_arg(payload, "headers", headers)
 
         # HTTP POST and HTTP PUT require the callback to have a body and content type
@@ -394,7 +412,7 @@ class Sigfox:
                 try_add_optional_arg(payload, "contentType", content_type)
 
         return self._make_api_put(
-            make_sigfox_url("/device_types/{id}/callbacks/{callbackId}", fargs={"id": id, "callbackId": callback_id}),
+            make_sigfox_url(f"/device-types/{id}/callbacks/{callback_id}"),
             payload,
         )
 
@@ -406,7 +424,7 @@ class Sigfox:
         :param device_type_id The ID of the Sigfox device type
         :return: json response containing device type callbacks
         """
-        return self._make_api_get(make_sigfox_url("/device-types/{sfid}/callbacks", fargs={"sfid": device_type_id}))
+        return self._make_api_get(make_sigfox_url(f"/device-types/{device_type_id}/callbacks"))
 
     def get_device_type_list(self, name: str = None):
         """
@@ -416,31 +434,31 @@ class Sigfox:
         :return: json response containing device type information
         """
         if name is not None:
-            return self._make_api_get(make_sigfox_url("/device-types?name={name}", fargs={"name": name}))
+            return self._make_api_get(make_sigfox_url(f"/device-types?name={name}"))
         return self._make_api_get(make_sigfox_url("/device-types"))
 
     def create_device_type(
-            self, 
-            name: str, 
-            group_id: str, 
-            contracts: str, 
-            geoloc_payload_config_id: str, 
-            description: str = None, 
-            downlink_mode: DownlinkMode = None,
-            downlink_data_string: str = None,
-            payload_type: DeviceTypePayloadType = None,
-            payload_config: str = None,
-            keep_alive: int = 1800,
-            alert_email: str = None,
-            automatic_renewal: bool = True,
-            contract_id: bool = True,
-        ):
+        self,
+        name: str,
+        group_id: str,
+        contracts: str,
+        geoloc_payload_config_id: str,
+        description: str = None,
+        downlink_mode: DownlinkMode = None,
+        downlink_data_string: str = None,
+        payload_type: DeviceTypePayloadType = None,
+        payload_config: str = None,
+        keep_alive: int = 1800,
+        alert_email: str = None,
+        automatic_renewal: bool = True,
+        contract_id: bool = True,
+    ):
         """
         Create a new device type
         https://support.sigfox.com/apidocs#operation/listDeviceTypes
         :param name The device type's name
         :param group_id The device type's group identifier
-        :param contracts The device type's contract identifiers, format as 
+        :param contracts The device type's contract identifiers, format as
         :param geoloc_payload_config_id The geoloc payload configuration identifier. Required if the payload type is Geolocation, else ignored.
         :param downlink_mode The downlink mode to use for the devices of this device type
         :param downlink_data_string Downlink data to be sent to the devices of this device type if the downlinkMode is equal to 0. It must be an 8 byte length message given in hexadecimal string format.
@@ -453,11 +471,10 @@ class Sigfox:
         :return: json response containing the newly created device type id
         """
         payload = {
-            "id": id,
             "name": name,
-            "group_id": group_id,
+            "groupId": group_id,
             "contracts": contracts,
-            "geoloc_payload_config_id": geoloc_payload_config_id,
+            "geolocPayloadConfigId": geoloc_payload_config_id,
         }
         try_add_optional_arg(payload, "description", description)
         try_add_optional_arg(payload, "downlinkMode", downlink_mode)
@@ -468,7 +485,7 @@ class Sigfox:
         try_add_optional_arg(payload, "alertEmail", alert_email)
         try_add_optional_arg(payload, "automaticRenewal", automatic_renewal)
         try_add_optional_arg(payload, "contractId", contract_id)
-        return self._make_api_post(make_sigfox_url("/devices"), payload)
+        return self._make_api_post(make_sigfox_url("/device-types"), payload)
 
     # ====================================
     #
