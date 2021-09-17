@@ -244,9 +244,9 @@ class Sigfox:
         :return: json response
         """
         payload = {}
-        payload = try_add_optional_arg(payload, "name", name)
-        payload = try_add_optional_arg(payload, "lat", latitude)
-        payload = try_add_optional_arg(payload, "lng", longitude)
+        try_add_optional_arg(payload, "name", name)
+        try_add_optional_arg(payload, "lat", latitude)
+        try_add_optional_arg(payload, "lng", longitude)
         if certificate is not None:
             payload["productCertificate"] = {"key": certificate}
         return self._make_api_put(make_sigfox_url(f"/devices/{id}"), payload)
