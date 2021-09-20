@@ -215,15 +215,21 @@ class Sigfox:
         }
         return self._make_api_post(make_sigfox_url("/devices"), payload)
 
-    def bulk_create_devices(self, device_type_id: str, device_list: list):
+    def bulk_create_devices(
+        self, device_type_id: str, device_list: list, is_prototype: bool = False, prefix: str = None
+    ):
         """
         Create multiple new devices with asynchronous job
         https://support.sigfox.com/apidocs#operation/createBulkDevice
         :param device_type_id The device's identifier (hexadecimal format)
         :param device_list Devices to add with format [{"id": "<sigfox_id>", "pac": <pac string>, "name": "<name string>"}
+        :param is_prototype Boolean value to tate if the devices are a prototypes
+        :param prefix Preix for the devices' names
         :return: json response containing new id
         """
         payload = {"deviceTypeId": device_type_id, "data": device_list}
+        try_add_optional_arg(payload, "prototype", is_prototype)
+        try_add_optional_arg(payload, "prefix", prefix)
         return self._make_api_post(make_sigfox_url("/devices"), payload)
 
     def update_device(
