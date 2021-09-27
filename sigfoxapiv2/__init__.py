@@ -157,14 +157,6 @@ class Sigfox:
     #   Sigfox Device Endpoint
     #
     # ====================================
-
-    def get_device_types(self):
-        """
-        Get all the device types registerted on the Sigfox backend
-        :return: json response containing device types
-        """
-        return self._make_api_get(make_sigfox_url("/device-types"))
-
     def get_device(self, device_id: str):
         """
         Retrieve information about a given device
@@ -315,6 +307,37 @@ class Sigfox:
     #   Sigfox Device Types Endpoint
     #
     # ====================================
+
+    def get_device_types(self):
+        """
+        Get all the device types registerted on the Sigfox backend
+        :return: json response containing device types
+        """
+        return self._make_api_get(make_sigfox_url("/device-types"))
+
+
+    def get_device_type(self, device_type_id: str, auth: bool=None, fields: str=None):
+        """
+        Get the device type with a specified ID
+
+        https://support.sigfox.com/apidocs#operation/getDeviceType
+        :param device_type_id The device type hex ID
+        :param auth true to return a list of actions the API user has acess to
+        :param fields Whether to keep all of the devices histories or not
+
+        :return: json response containing the device type information
+        """
+        endpoint = f"/device-types/{device_type_id}"
+        if auth is not None and fields is not None:
+            endpoint += f"?authorizations={auth}&fields={fields}"
+        elif auth is not None:
+            endpoint += f"?authorizations={auth}"
+        elif fields is not None:
+            endpoint += f"fields={fields}"
+
+        return self._make_api_get(make_sigfox_url(endpoint=endpoint))
+
+
     def create_device_type_callback(
         self,
         id: str,
