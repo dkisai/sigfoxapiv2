@@ -1,4 +1,5 @@
 import base64
+from typing import List
 import requests
 from requests.exceptions import Timeout
 import json
@@ -470,7 +471,7 @@ class Sigfox:
         self,
         name: str,
         group_id: str,
-        contracts: str,
+        contracts: List[str],
         geoloc_payload_config_id: str,
         description: str = None,
         downlink_mode: DownlinkMode = None,
@@ -480,7 +481,7 @@ class Sigfox:
         keep_alive: int = 1800,
         alert_email: str = None,
         automatic_renewal: bool = True,
-        contract_id: bool = True,
+        contract_id: str = None,
     ):
         """
         Create a new device type
