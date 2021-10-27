@@ -1,5 +1,5 @@
 def make_sigfox_url(endpoint: str):
-    return f"https://api.sigfox.com/v2/{endpoint}"
+    return f"https://api.sigfox.com/v2{endpoint}"
 
 
 def try_add_optional_arg(arg_list: dict, key: str, value: any):
