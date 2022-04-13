@@ -108,7 +108,9 @@ class Sigfox:
         headers["Accept"] = "application/json"
         # Make request
         try:
-            response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=self.timeout)
+            response = requests.post(
+                url, headers=headers, data=json.dumps(payload), timeout=self.timeout
+            )
             data = None
             if response.content:
                 data = json.loads(response.content)
@@ -130,7 +132,9 @@ class Sigfox:
 
         # Make request
         try:
-            response = requests.put(url, headers=headers, data=json.dumps(payload), timeout=self.timeout)
+            response = requests.put(
+                url, headers=headers, data=json.dumps(payload), timeout=self.timeout
+            )
             data = None
             if response.content:
                 data = json.loads(response.content)
@@ -145,7 +149,9 @@ class Sigfox:
         :return: json response data
         """
         try:
-            response = requests.get(url, headers=self._make_auth_header(), timeout=self.timeout)
+            response = requests.get(
+                url, headers=self._make_auth_header(), timeout=self.timeout
+            )
             data = None
             if response.content:
                 data = json.loads(response.content)
@@ -175,7 +181,9 @@ class Sigfox:
         :param device_type_id The ID of the Sigfox device type
         :return: json response containing devices of the device type
         """
-        return self._make_api_get(make_sigfox_url(f"/devices?deviceTypeId={device_type_id}"))
+        return self._make_api_get(
+            make_sigfox_url(f"/devices?deviceTypeId={device_type_id}")
+        )
 
     def get_device_messages(self, device_id: str, since: datetime.datetime = None):
         """
@@ -187,10 +195,24 @@ class Sigfox:
         :return: json response containing device messages
         """
         if since:
-            return self._make_api_get(make_sigfox_url(f"/devices/{device_id}/messages?since={since}"))
+            return self._make_api_get(
+                make_sigfox_url(f"/devices/{device_id}/messages?since={since}")
+            )
         return self._make_api_get(make_sigfox_url(f"/devices/{device_id}/messages"))
 
-    def create_device(self, id: str, name: str, device_type_id: str, pac_code: str):
+    def create_device(
+        self,
+        id: str,
+        name: str,
+        device_type_id: str,
+        pac_code: str,
+        prototype: bool,
+        product_cert: str = None,
+        activable: bool = True,
+        automatic_renewal: bool = True,
+        lat: float = 0,
+        lng: float = 0,
+    ):
         """
         Creates a new Sigfox device.
         https://support.sigfox.com/apidocs#operation/createDevice
@@ -205,11 +227,23 @@ class Sigfox:
             "name": name,
             "deviceTypeId": device_type_id,
             "pac": pac_code,
+            "prototype": prototype,
+            "activable": activable,
+            "automaticRenewal": automatic_renewal,
+            "lat": lat,
+            "lng": lng,
         }
+
+        try_add_optional_arg(payload, "productCertificate", {"key": product_cert})
+
         return self._make_api_post(make_sigfox_url("/devices"), payload)
 
     def bulk_create_devices(
-        self, device_type_id: str, device_list: list, is_prototype: bool = False, prefix: str = None
+        self,
+        device_type_id: str,
+        device_list: list,
+        is_prototype: bool = False,
+        prefix: str = None,
     ):
         """
         Create multiple new devices with asynchronous job
@@ -276,7 +310,9 @@ class Sigfox:
         :param activable_for_all True if all the devices are activable and can take a token. Not used if the device has already a token and if the transferred is intra-order.
         :return: json response containing "total" number of devices being transfered and the "jobId"
         """
-        return self.bulk_transfer_devices(new_device_type_id, [device_id], keep_history, activable)
+        return self.bulk_transfer_devices(
+            new_device_type_id, [device_id], keep_history, activable
+        )
 
     def bulk_transfer_devices(
         self,
@@ -316,8 +352,9 @@ class Sigfox:
         """
         return self._make_api_get(make_sigfox_url("/device-types"))
 
-
-    def get_device_type(self, device_type_id: str, auth: bool=None, fields: str=None):
+    def get_device_type(
+        self, device_type_id: str, auth: bool = None, fields: str = None
+    ):
         """
         Get the device type with a specified ID
 
@@ -337,7 +374,6 @@ class Sigfox:
             endpoint += f"fields={fields}"
 
         return self._make_api_get(make_sigfox_url(endpoint=endpoint))
-
 
     def create_device_type_callback(
         self,
@@ -386,12 +422,19 @@ class Sigfox:
         # HTTP POST and HTTP PUT require the callback to have a body and content type
         if http_method == "POST" or http_method == "PUT":
             if body_template is None or content_type is None:
-                return 400, {"message": "POST and PUT requests require body template and content type parameters."}
+                return (
+                    400,
+                    {
+                        "message": "POST and PUT requests require body template and content type parameters."
+                    },
+                )
             else:
                 try_add_optional_arg(payload, "bodyTemplate", body_template)
                 try_add_optional_arg(payload, "contentType", content_type)
 
-        return self._make_api_post(make_sigfox_url(f"/device-types/{id}/callbacks"), payload)
+        return self._make_api_post(
+            make_sigfox_url(f"/device-types/{id}/callbacks"), payload
+        )
 
     def update_device_type_callback(
         self,
@@ -442,8 +485,7 @@ class Sigfox:
                 try_add_optional_arg(payload, "contentType", content_type)
 
         return self._make_api_put(
-            make_sigfox_url(f"/device-types/{id}/callbacks/{callback_id}"),
-            payload,
+            make_sigfox_url(f"/device-types/{id}/callbacks/{callback_id}"), payload
         )
 
     def get_device_type_callbacks(self, device_type_id: str):
@@ -454,7 +496,9 @@ class Sigfox:
         :param device_type_id The ID of the Sigfox device type
         :return: json response containing device type callbacks
         """
-        return self._make_api_get(make_sigfox_url(f"/device-types/{device_type_id}/callbacks"))
+        return self._make_api_get(
+            make_sigfox_url(f"/device-types/{device_type_id}/callbacks")
+        )
 
     def get_device_type_list(self, name: str = None):
         """
