@@ -1,5 +1,5 @@
 import base64
-from typing import List
+from typing import List, Dict, Tuple
 import requests
 from requests.exceptions import Timeout
 import json
@@ -61,18 +61,18 @@ class Sigfox:
     V2 API
     """
 
-    def __init__(self, user, password):
+    def __init__(self, user, password) -> None:
         self.user = user
         self.passwd = password
         self._timeout = (3.05, 27)
 
     @property
-    def timeout(self):
+    def timeout(self) -> Tuple[float, float]:
         # Gets requests.timeout tupple(connect, response)
         return self._timeout
 
     @timeout.setter
-    def timeout(self, value):
+    def timeout(self, value) -> None:
         # Sets requests.timeout tupple(connect, response)
         s = "expected a tuple(connect_T, repsonse_T) of types: (float, int)"
         assert isinstance(value, tuple), s
@@ -86,64 +86,59 @@ class Sigfox:
     #
     # ====================================
 
-    def _make_auth_header(self):
+    def _make_auth_header(self) -> str:
         """
         Creates an auth header using the user and pass provided
         :return: dict that is the auth header
         """
-        auth_str = "{}:{}".format(self.user, self.passwd).encode("utf-8")
+        auth_str = f"{self.user}:{self.passwd}".encode("utf-8")
         user_pass = base64.b64encode(auth_str).decode("ascii")
-        auth_header = "Authorization:Basic {}".format(user_pass).split(":")
+        auth_header = f"Authorization:Basic {user_pass}".split(":")
         return {auth_header[0]: auth_header[1]}
 
-    def _make_api_post(self, url: str, payload: dict):
+    def _make_api_post(self, url: str, payload: dict) -> Tuple[int, dict]:
         """
         Send PUT request to Sigfox backend API endpoint
         :param url:  API endpoint RESTful request URL
         :param payload:  The JSON to send to the Sigfox backend
         :return: json response data
         """
-        # Create headers
-        headers = self._make_auth_header()
-        headers["Content-type"] = "application/json"
-        headers["Accept"] = "application/json"
+        headers = self._make_request_header()
         # Make request
         try:
             response = requests.post(
                 url, headers=headers, data=json.dumps(payload), timeout=self.timeout
             )
-            data = None
-            if response.content:
-                data = json.loads(response.content)
+            data = json.loads(response.content) if response.content else None
             return response.status_code, data
         except Timeout:
             return 408, {"error": "Sigfox.server - POST request timeout"}
 
-    def _make_api_put(self, url: str, payload: dict):
+    def _make_api_put(self, url: str, payload: dict) -> Tuple[int, dict]:
         """
         Send PUT request to Sigfox backend API endpoint
         :param url:  API endpoint RESTful request URL
         :param payload:  The JSON to send to the Sigfox backend
         :return: json response data
         """
-        # Create headers
-        headers = self._make_auth_header()
-        headers["Content-type"] = "application/json"
-        headers["Accept"] = "application/json"
-
+        headers = self._make_request_header()
         # Make request
         try:
             response = requests.put(
                 url, headers=headers, data=json.dumps(payload), timeout=self.timeout
             )
-            data = None
-            if response.content:
-                data = json.loads(response.content)
+            data = json.loads(response.content) if response.content else None
             return response.status_code, data
         except Timeout:
             return 408, {"error": "Sigfox.server - PUT request timeout"}
 
-    def _make_api_get(self, url: str):
+    def _make_request_header(self) -> Dict[str, str]:
+        result = self._make_auth_header()
+        result["Content-type"] = "application/json"
+        result["Accept"] = "application/json"
+        return result
+
+    def _make_api_get(self, url: str) -> Tuple[int, dict]:
         """
         Send GET request to Sigfox backend API endpoint
         :param url:  API endpoint RESTful request URL
@@ -153,9 +148,7 @@ class Sigfox:
             response = requests.get(
                 url, headers=self._make_auth_header(), timeout=self.timeout
             )
-            data = None
-            if response.content:
-                data = json.loads(response.content)
+            data = json.loads(response.content) if response.content else None
             return response.status_code, data
         except Timeout:
             return 408, {"error": "Sigfox.server - GET request timeout"}
@@ -165,7 +158,7 @@ class Sigfox:
     #   Sigfox Device Endpoint
     #
     # ====================================
-    def get_device(self, device_id: str):
+    def get_device(self, device_id: str) -> Tuple[int, dict]:
         """
         Retrieve information about a given device
         https://support.sigfox.com/apidocs#operation/getDevice
@@ -174,19 +167,27 @@ class Sigfox:
         """
         return self._make_api_get(make_sigfox_url(f"/devices/{device_id}"))
 
-    def get_devices(self, device_type_id: str):
+    def get_devices(
+        self, device_type_id: str, limit: int = 100, offset: int = 0
+    ) -> Tuple[int, dict]:
         """
         Gets all the devices of a particular device type
         /devices/ endpoint
         https://support.sigfox.com/apidocs#operation/listDevices
         :param device_type_id The ID of the Sigfox device type
+        :param limit The maximum number of devices to return, default 100
+        :param offset The offset to start the list of devices, default 0
         :return: json response containing devices of the device type
         """
         return self._make_api_get(
-            make_sigfox_url(f"/devices?deviceTypeId={device_type_id}")
+            make_sigfox_url(
+                f"/devices?deviceTypeId={device_type_id}&limit={limit}&offset={offset}"
+            )
         )
 
-    def get_device_messages(self, device_id: str, since: datetime.datetime = None):
+    def get_device_messages(
+        self, device_id: str, since: datetime.datetime = None
+    ) -> Tuple[int, dict]:
         """
         Gets all the devices of a particular device type
         /devices/{id}/messages/ endpoint
@@ -213,7 +214,7 @@ class Sigfox:
         automatic_renewal: bool = True,
         lat: float = 0,
         lng: float = 0,
-    ):
+    ) -> Tuple[int, dict]:
         """
         Creates a new Sigfox device.
         https://support.sigfox.com/apidocs#operation/createDevice
@@ -242,10 +243,10 @@ class Sigfox:
     def bulk_create_devices(
         self,
         device_type_id: str,
-        device_list: list,
+        device_list: List[Dict[str, str]],
         is_prototype: bool = False,
         prefix: str = None,
-    ):
+    ) -> Tuple[int, dict]:
         """
         Create multiple new devices with asynchronous job
         https://support.sigfox.com/apidocs#operation/createBulkDevice
@@ -267,7 +268,7 @@ class Sigfox:
         latitude: str = None,
         longitude: str = None,
         certificate: str = None,
-    ):
+    ) -> Tuple[int, dict]:
         """
         Updates an exsisting Sigfox device.
         https://support.sigfox.com/apidocs#operation/updateDevice
@@ -285,7 +286,7 @@ class Sigfox:
             payload["productCertificate"] = {"key": certificate}
         return self._make_api_put(make_sigfox_url(f"/devices/{id}"), payload)
 
-    def bulk_update_devices(self, device_list: list):
+    def bulk_update_devices(self, device_list: List[Dict]) -> Tuple[int, dict]:
         """
         Update Sigfox devices in bulk
         https://support.sigfox.com/apidocs#operation/deviceBulkEditAsync
@@ -298,10 +299,10 @@ class Sigfox:
     def transfer_device(
         self,
         new_device_type_id: str,
-        device_id: list,
+        device_id: str,
         keep_history: bool = True,
         activable: bool = True,
-    ):
+    ) -> Tuple[int, dict]:
         """
         Transfer a device to another device type
         https://support.sigfox.com/apidocs#operation/deviceBulkTransfer
@@ -312,16 +313,16 @@ class Sigfox:
         :return: json response containing "total" number of devices being transfered and the "jobId"
         """
         return self.bulk_transfer_devices(
-            new_device_type_id, [device_id], keep_history, activable
+            new_device_type_id, [{"id": device_id}], keep_history, activable
         )
 
     def bulk_transfer_devices(
         self,
         new_device_type_id: str,
-        device_list: list,
+        device_list: List[Dict[str, str]],
         keep_history_for_all: bool = True,
         activable_for_all: bool = True,
-    ):
+    ) -> Tuple[int, dict]:
         """
         Transfer multiple devices to another device type
         https://support.sigfox.com/apidocs#operation/deviceBulkTransfer
@@ -346,7 +347,7 @@ class Sigfox:
     #
     # ====================================
 
-    def get_device_types(self):
+    def get_device_types(self) -> Tuple[int, dict]:
         """
         Get all the device types registerted on the Sigfox backend
         :return: json response containing device types
@@ -355,7 +356,7 @@ class Sigfox:
 
     def get_device_type(
         self, device_type_id: str, auth: bool = None, fields: str = None
-    ):
+    ) -> Tuple[int, dict]:
         """
         Get the device type with a specified ID
 
@@ -390,7 +391,7 @@ class Sigfox:
         content_type: str = None,
         payload_config: str = None,
         send_sni: bool = None,
-    ):
+    ) -> Tuple[int, dict]:
         """
         Creates a callback for a device type
         https://support.sigfox.com/apidocs#operation/createCallback
@@ -450,7 +451,7 @@ class Sigfox:
         headers: str = None,
         body_template: str = None,
         content_type: str = None,
-    ):
+    ) -> Tuple[int, dict]:
         """
         Updates a callback for a device type
         https://support.sigfox.com/apidocs#operation/createCallback
@@ -489,7 +490,7 @@ class Sigfox:
             make_sigfox_url(f"/device-types/{id}/callbacks/{callback_id}"), payload
         )
 
-    def get_device_type_callbacks(self, device_type_id: str):
+    def get_device_type_callbacks(self, device_type_id: str) -> Tuple[int, dict]:
         """
         Gets all the device callbacks of a particular type
         /device-types/{id}/callbacks/ endpoint
@@ -508,7 +509,7 @@ class Sigfox:
         to_epoch: int = int(time.time() * 1000),
         limit=100,
         offset=0,
-    ):
+    ) -> Tuple[int, dict]:
         """
         Gets the device type callback error
         https://support.sigfox.com/apidocs
@@ -519,7 +520,7 @@ class Sigfox:
             )
         )
 
-    def get_device_type_list(self, name: str = None):
+    def get_device_type_list(self, name: str = None) -> Tuple[int, dict]:
         """
         Retrieve a list of device types according to visibility permissions and request filters.
         https://support.sigfox.com/apidocs#operation/listDeviceTypes
@@ -545,7 +546,7 @@ class Sigfox:
         alert_email: str = None,
         automatic_renewal: bool = True,
         contract_id: str = None,
-    ):
+    ) -> Tuple[int, dict]:
         """
         Create a new device type
         https://support.sigfox.com/apidocs#operation/listDeviceTypes
@@ -586,7 +587,7 @@ class Sigfox:
     #
     # ====================================
 
-    def get_contract_information(self):
+    def get_contract_information(self) -> Tuple[int, dict]:
         """
         Retrieve a list of Sigfox Device contracts
         :return: json response containing contracts
