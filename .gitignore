@@ -11,3 +11,5 @@ dist/
 build/
 
 update.sh
+
+sandbox.py

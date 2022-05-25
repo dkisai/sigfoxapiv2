@@ -501,14 +501,21 @@ class Sigfox:
             make_sigfox_url(f"/device-types/{device_type_id}/callbacks")
         )
 
-    def get_device_type_callback_error(self, id: str, from_epoch: int = 0, to_epoch: int = time.time() * 1000, limit = 100, offset = 0):
+    def get_device_type_callback_errors(
+        self,
+        id: str,
+        from_epoch: int = 0,
+        to_epoch: int = int(time.time() * 1000),
+        limit=100,
+        offset=0,
+    ):
         """
         Gets the device type callback error
         https://support.sigfox.com/apidocs
         """
         return self._make_api_get(
             make_sigfox_url(
-                f"/device-types/{id}/callbacks/error?fromEpoch={from_epoch}&toEpoch={to_epoch}&limit={limit}&offset={offset}"
+                f"/device-types/{id}//callbacks-not-delivered?since={from_epoch}&before={to_epoch}&limit={limit}&offset={offset}"
             )
         )
 
